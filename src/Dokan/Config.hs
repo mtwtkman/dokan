@@ -48,7 +48,14 @@ loadConfig path = do
   renderConfigError (InvalidPort proto v) = buildErrorMessage proto v ": Invalid port number detected"
 
   buildErrorMessage :: Protocol -> T.Text -> String -> String
-  buildErrorMessage proto v msg = show proto <> ": " <> msg <> " but " <> "'" <> T.unpack v <> "'"
+  buildErrorMessage proto v msg =
+    show proto
+      <> ": "
+      <> msg
+      <> " but "
+      <> "'"
+      <> T.unpack v
+      <> "'"
 
 buildRoutingTable :: RawConfig -> ConfigParseResult RoutingTable
 buildRoutingTable (RawConfig httpRoutes httpsRoutes) = do
