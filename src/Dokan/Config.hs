@@ -9,24 +9,13 @@ import Data.Bifunctor (first)
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import Data.Yaml (FromJSON (parseJSON), decodeFileThrow, withObject, (.!=), (.:?))
-
-data Protocol
-  = Http
-  | Https
-  deriving
-    (Eq, Ord, Show)
-
-type HostName = T.Text
-
-data Backend = Backend
-  { backendHost :: T.Text
-  , backendPort :: Int
-  }
-  deriving (Eq, Show)
-
-data RequestFrom = RequestFrom Protocol HostName deriving (Show, Eq, Ord)
-
-type RoutingTable = M.Map RequestFrom Backend
+import Dokan.Types (
+  Backend (Backend),
+  HostName,
+  Protocol (..),
+  RequestFrom (RequestFrom),
+  RoutingTable,
+ )
 
 data ConfigError
   = InvalidBackendFormat Protocol T.Text
