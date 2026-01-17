@@ -16,7 +16,11 @@ executable dokan
     base ^>=4.18.3.0,
     dokan,
     mtl,
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+
+  ghc-options:
+    -threaded
+    -rtsopts
+    -with-rtsopts=-N
 
   hs-source-dirs: app
   default-language: Haskell2010
@@ -27,8 +31,10 @@ library
     async,
     base,
     bytestring,
+    case-insensitive,
     containers,
     http-client,
+    http-types,
     mtl,
     stm,
     text,
@@ -36,8 +42,6 @@ library
     warp,
     warp-tls,
     yaml,
-    http-types,
-    case-insensitive,
 
   hs-source-dirs: src
   default-language: Haskell2010
@@ -45,5 +49,6 @@ library
     Dokan
     Dokan.Config
     Dokan.Listener.Http
+    Dokan.Proxy
     Dokan.Types
 
