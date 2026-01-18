@@ -13,7 +13,6 @@ Dokan has the following restritcions:
 - Dokan does not modify, normalize, or reconcile protocol-specific behavior
 - Application-level behavioral differences are the responseibility of the backend
 
---
 ## NOTES
 - HTTPS routing is based on SNI hostname
 - HTTP routing uses the Host header
@@ -54,3 +53,10 @@ http:
 Backends are assumed to be plain HTTP endpoints.
 
 A backend may itself be a reverse proxy such as nginx.
+
+# Acknowledge
+Dokan rewrites the Host header to the backend address by default like nginx.
+
+The original host is forwarded using X-Forwarded-Host.
+
+Preserving the original Host header is available as an opt-in feature.

@@ -4,6 +4,9 @@ module Dokan.Types (
   Protocol (..),
   Backend (..),
   HostName,
+  HostPolicy (..),
+  Route (..),
+  hostPolicyFromBool,
 ) where
 
 import qualified Data.Map.Strict as M
@@ -25,4 +28,19 @@ data Backend = Backend
   }
   deriving (Eq, Show)
 
-type RoutingTable = M.Map RequestFrom Backend
+data HostPolicy
+  = RewriteHost
+  | PreserveHost
+  deriving (Show, Eq)
+
+hostPolicyFromBool :: Bool -> HostPolicy
+hostPolicyFromBool False = RewriteHost
+hostPolicyFromBool True = PreserveHost
+
+data Route = Route
+  { routeBackend :: Backend
+  , routeHostPolicy :: HostPolicy
+  }
+  deriving (Show, Eq)
+
+type RoutingTable = M.Map RequestFrom Route

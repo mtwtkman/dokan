@@ -5,7 +5,6 @@ module Dokan.Config (
 ) where
 
 import Control.Monad.Except (ExceptT)
-import Data.Bifunctor (first)
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import Data.Yaml (FromJSON (parseJSON), decodeFileThrow, withObject, (.!=), (.:?))
@@ -14,7 +13,9 @@ import Dokan.Types (
   HostName,
   Protocol (..),
   RequestFrom (RequestFrom),
+  Route (Route),
   RoutingTable,
+  hostPolicyFromBool,
  )
 
 data ConfigError
@@ -27,6 +28,7 @@ type ConfigParseResult a = Either ConfigError a
 data RawConfig = RawConfig
   { rawHttp :: M.Map HostName T.Text
   , rawHttps :: M.Map HostName T.Text
+  , rawPreserveHost :: Bool
   }
   deriving (Show)
 
@@ -35,6 +37,7 @@ instance FromJSON RawConfig where
     RawConfig
       <$> o .:? "http" .!= M.empty
       <*> o .:? "https" .!= M.empty
+      <*> o .:? "preserveHost" .!= False
 
 loadConfig :: FilePath -> ExceptT ConfigError IO RoutingTable
 loadConfig path = do
@@ -58,13 +61,13 @@ loadConfig path = do
       <> "'"
 
 buildRoutingTable :: RawConfig -> ConfigParseResult RoutingTable
-buildRoutingTable (RawConfig httpRoutes httpsRoutes) = do
+buildRoutingTable (RawConfig httpRoutes httpsRoutes preserveHost) = do
   httpTable <- traverse (parseBackend Http) httpRoutes
   httpsTable <- traverse (parseBackend Https) httpsRoutes
   pure $ M.union (makeTable Http httpTable) (makeTable Https httpsTable)
  where
   makeTable :: Protocol -> M.Map HostName Backend -> RoutingTable
-  makeTable proto m = M.fromList $ map (first (RequestFrom proto)) (M.assocs m)
+  makeTable proto m = M.fromList $ map (\(k, v) -> (RequestFrom proto k, Route v (hostPolicyFromBool preserveHost))) (M.assocs m)
 
 parseBackend :: Protocol -> T.Text -> ConfigParseResult Backend
 parseBackend proto value =

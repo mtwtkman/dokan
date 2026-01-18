@@ -8,11 +8,12 @@ import qualified Data.ByteString.Char8 as BS
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
-import Dokan.Proxy (proxyToBackend)
+import qualified Data.Text.Encoding as TE
+import Dokan.Proxy.Transfer (proxyToBackend)
 import Dokan.Types (
-  Backend (..),
   Protocol (Http),
   RequestFrom (RequestFrom),
+  Route,
   RoutingTable,
  )
 import Network.HTTP.Types (status400, status502)
@@ -24,20 +25,22 @@ import Network.Wai (
   responseLBS,
  )
 import Network.Wai.Handler.Warp (run)
+import Network.HTTP.Client (newManager, defaultManagerSettings, Manager)
 
 data HttpError = MissingHost | NoRoute deriving (Show, Eq)
 type HttpResult a = Either HttpError a
 
 runHttp :: RoutingTable -> IO ()
-runHttp routing =
-  run 8080 (app routing)
+runHttp routing = do
+  manager <- newManager defaultManagerSettings
+  run 8080 (app manager routing)
 
-app :: RoutingTable -> Application
-app routing req respond = do
+app :: Manager -> RoutingTable -> Application
+app manager routing req respond = do
   case resolve routing req of
     Left err -> respond (errorResponse err)
-    Right (_, backend) -> do
-      resp <- proxyToBackend backend req
+    Right (originalHost, route) -> do
+      resp <- proxyToBackend manager route (TE.encodeUtf8 originalHost) req
       respond resp
 
 errorResponse :: HttpError -> Response
@@ -52,8 +55,8 @@ extractHost req =
     Just raw ->
       Right $ T.pack $ takeWhile (/= ':') $ BS.unpack raw
 
-resolve :: RoutingTable -> Request -> HttpResult (T.Text, Backend)
+resolve :: RoutingTable -> Request -> HttpResult (T.Text, Route)
 resolve routing req = do
   host <- extractHost req
-  backend <- maybe (Left NoRoute) Right $ M.lookup (RequestFrom Http host) routing
-  pure (host, backend)
+  route <- maybe (Left NoRoute) Right $ M.lookup (RequestFrom Http host) routing
+  pure (host, route)

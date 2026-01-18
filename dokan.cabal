@@ -49,6 +49,7 @@ library
     Dokan
     Dokan.Config
     Dokan.Listener.Http
-    Dokan.Proxy
+    Dokan.Proxy.Headers
+    Dokan.Proxy.Transfer
     Dokan.Types
 
