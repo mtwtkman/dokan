@@ -13,6 +13,7 @@ executable dokan
   import: warnings
   main-is: Main.hs
   build-depends:
+    async,
     base ^>=4.18.3.0,
     dokan,
     mtl,
@@ -28,7 +29,6 @@ executable dokan
 library
   import: warnings
   build-depends:
-    async,
     base,
     bytestring,
     case-insensitive,

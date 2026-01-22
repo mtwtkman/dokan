@@ -14,6 +14,6 @@ runHttps routing = do
         tlsSettings
           "certs/server.crt"
           "certs/server.key"
-      warp = setPort 443 defaultSettings
+      warp = setPort 8443 defaultSettings
   manager <- newManager defaultManagerSettings
   runTLS tls warp (app manager routing)

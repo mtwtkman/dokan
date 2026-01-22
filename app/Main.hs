@@ -1,9 +1,11 @@
 module Main where
 
+import Control.Concurrent.Async (concurrently_)
 import Control.Monad.Except (runExceptT)
 import Data.Functor ((<&>))
 import Dokan.Config (loadConfig)
 import Dokan.Listener.Http (runHttp)
+import Dokan.Listener.Https (runHttps)
 import System.Environment (getArgs)
 
 defaultRouteMap :: FilePath
@@ -15,6 +17,8 @@ main = do
   result <- runExceptT (loadConfig configName)
   case result of
     Right routing -> do
-      putStrLn $ "Proxy with " <> configName
-      runHttp routing
+      putStrLn $ "Dokan using " <> configName <> " to route"
+      concurrently_
+        (runHttp routing)
+        (runHttps routing)
     Left e -> print e
