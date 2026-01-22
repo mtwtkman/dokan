@@ -38,6 +38,7 @@ library
     mtl,
     stm,
     text,
+    vault,
     wai,
     warp,
     warp-tls,
@@ -48,8 +49,9 @@ library
   exposed-modules:
     Dokan
     Dokan.Config
+    Dokan.Listener.App
     Dokan.Listener.Http
+    Dokan.Listener.Https
     Dokan.Proxy.Headers
     Dokan.Proxy.Transfer
     Dokan.Types
-
