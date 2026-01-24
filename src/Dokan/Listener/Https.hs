@@ -12,8 +12,8 @@ runHttps :: RoutingTable -> IO ()
 runHttps routing = do
   let tls =
         tlsSettings
-          "certs/server.crt"
-          "certs/server.key"
+          "certs/cert.pem"
+          "certs/cert-key.pem"
       warp = setPort 8443 defaultSettings
   manager <- newManager defaultManagerSettings
   runTLS tls warp (app manager routing)
