@@ -8,22 +8,18 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Text.Encoding as TE
-import Dokan.Types (Backend (..), HostPolicy (..))
+import Dokan.Types (Backend (..))
 import Network.HTTP.Types (RequestHeaders)
 
 rewriteHostHeaders ::
-  HostPolicy ->
   Backend ->
   B.ByteString ->
   RequestHeaders ->
   RequestHeaders
-rewriteHostHeaders policy backend originalHost headers =
-  case policy of
-    PreserveHost -> headers
-    RewriteHost ->
-      addForwardedHeaders
-        originalHost
-        (replaceHost backend headers)
+rewriteHostHeaders backend originalHost headers =
+  addForwardedHeaders
+    originalHost
+    (replaceHost backend headers)
 
 replaceHost :: Backend -> RequestHeaders -> RequestHeaders
 replaceHost backend =

@@ -3,7 +3,7 @@ module Main where
 import Control.Concurrent.Async (concurrently_)
 import Control.Monad.Except (runExceptT)
 import Data.Functor ((<&>))
-import Dokan.Config (loadConfig)
+import Dokan.Config (loadConfig, DokanConfig(dokanRoutingTable))
 import Dokan.Listener.Http (runHttp)
 import Dokan.Listener.Https (runHttps)
 import System.Environment (getArgs)
@@ -19,6 +19,6 @@ main = do
     Right routing -> do
       putStrLn $ "Dokan using " <> configName <> " to route"
       concurrently_
-        (runHttp routing)
-        (runHttps routing)
+        (runHttp (dokanRoutingTable routing))
+        (runHttps (dokanRoutingTable routing))
     Left e -> print e

@@ -33,11 +33,13 @@ library
     bytestring,
     case-insensitive,
     containers,
+    data-default,
     http-client,
     http-types,
     mtl,
     stm,
     text,
+    tls,
     vault,
     wai,
     warp,
@@ -54,4 +56,5 @@ library
     Dokan.Listener.Https
     Dokan.Proxy.Headers
     Dokan.Proxy.Transfer
+    Dokan.Tls
     Dokan.Types

@@ -9,15 +9,10 @@ import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Dokan.Proxy.Transfer (proxyToBackend)
-import Dokan.Types (
-  Protocol (Http),
-  RequestFrom (RequestFrom),
-  Route,
-  RoutingTable,
- )
+import Dokan.Types (Backend, RoutingTable)
 import Network.HTTP.Client (Manager)
 import Network.HTTP.Types (status400, status502)
-import Network.Wai (Application, Response, responseLBS, Request, requestHeaders)
+import Network.Wai (Application, Request, Response, requestHeaders, responseLBS)
 
 type HttpResult a = Either HttpError a
 data HttpError = MissingHost | NoRoute deriving (Show, Eq)
@@ -34,11 +29,11 @@ errorResponse :: HttpError -> Response
 errorResponse MissingHost = responseLBS status400 [] "Host header missing"
 errorResponse NoRoute = responseLBS status502 [] "No backend route"
 
-resolve :: RoutingTable -> Request -> HttpResult (T.Text, Route)
+resolve :: RoutingTable -> Request -> HttpResult (T.Text, Backend)
 resolve routing req = do
   host <- extractHost req
-  route <- maybe (Left NoRoute) Right $ M.lookup (RequestFrom Http host) routing -- TODO: Enalbe Https resolving
-  pure (host, route)
+  backend <- maybe (Left NoRoute) Right $ M.lookup host routing
+  pure (host, backend)
 
 extractHost :: Request -> HttpResult T.Text
 extractHost req =

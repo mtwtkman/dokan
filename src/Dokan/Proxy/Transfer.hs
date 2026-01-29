@@ -6,7 +6,7 @@ import qualified Data.ByteString as B
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Text.Encoding as TE
 import Dokan.Proxy.Headers (rewriteHostHeaders)
-import Dokan.Types (Backend (backendHost, backendPort), Route (..))
+import Dokan.Types (Backend (backendHost, backendPort))
 import Network.HTTP.Client (RequestBody (RequestBodyLBS))
 import qualified Network.HTTP.Client as HC
 import Network.HTTP.Types (RequestHeaders, mkStatus, statusCode)
@@ -39,9 +39,9 @@ mkProxyRequest backend headers waiReq = do
           }
   pure req
 
-proxyToBackend :: HC.Manager -> Route -> B.ByteString -> W.Request -> IO W.Response
-proxyToBackend manager (Route backend policy) originalHost waiReq = do
-  let headers' = rewriteHostHeaders policy backend originalHost (W.requestHeaders waiReq)
+proxyToBackend :: HC.Manager -> Backend -> B.ByteString -> W.Request -> IO W.Response
+proxyToBackend manager backend originalHost waiReq = do
+  let headers' = rewriteHostHeaders backend originalHost (W.requestHeaders waiReq)
   proxyReq <- mkProxyRequest backend headers' waiReq
   resp <- HC.httpLbs proxyReq manager
   pure $

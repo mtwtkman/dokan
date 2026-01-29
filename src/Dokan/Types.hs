@@ -1,26 +1,18 @@
 module Dokan.Types (
-  RequestFrom (..),
   RoutingTable,
-  Protocol (..),
   Backend (..),
   HostName,
-  HostPolicy (..),
-  Route (..),
-  hostPolicyFromBool,
+  HostPatternSet (..),
+  LoadedCert (..),
+  CertStore (..),
 ) where
 
+import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
-
-data Protocol
-  = Http
-  | Https
-  deriving
-    (Eq, Ord, Show)
+import Network.TLS (Credential)
 
 type HostName = T.Text
-
-data RequestFrom = RequestFrom Protocol HostName deriving (Show, Eq, Ord)
 
 data Backend = Backend
   { backendHost :: T.Text
@@ -28,19 +20,20 @@ data Backend = Backend
   }
   deriving (Eq, Show)
 
-data HostPolicy
-  = RewriteHost
-  | PreserveHost
-  deriving (Show, Eq)
+type RoutingTable = M.Map HostName Backend
 
-hostPolicyFromBool :: Bool -> HostPolicy
-hostPolicyFromBool False = RewriteHost
-hostPolicyFromBool True = PreserveHost
+data HostPatternSet
+  = HostExacts (NonEmpty HostName)
+  | HostWildcards (NonEmpty HostName)
+  deriving (Show, Eq, Ord)
 
-data Route = Route
-  { routeBackend :: Backend
-  , routeHostPolicy :: HostPolicy
+data LoadedCert = LoadedCert
+  { lcCredential :: Credential
+  , lcHostPatterns :: HostPatternSet
   }
-  deriving (Show, Eq)
+  deriving (Show)
 
-type RoutingTable = M.Map RequestFrom Route
+newtype CertStore = CertStore
+  { unCertStore :: [LoadedCert]
+  }
+  deriving (Show)
