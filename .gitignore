@@ -1,7 +1,5 @@
 dist-newstyle/
 *.yaml
 certs/
-.aider.chat.history.md
-.aider.input.history
-.aider.tags.cache.v4/
 server
+.aider*
