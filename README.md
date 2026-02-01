@@ -28,9 +28,15 @@ A self-signed development CA is acceptable if it is installed into the OS or bro
 Dokan does not obtain certificates automatically.
 
 # Usage
-You must create `route.yaml` first, then start Dokan using `docker` or `dokan /path/to/route.yaml`.
+```bash
+# Dokan reads "./dokan.yaml" as default.
+dokan
 
-# route.yaml
+# Or you can specify any file as routing mapper.
+dokan /path/to/your-route.yaml
+```
+
+# Routing mapper
 When Dokan reads like:
 ```yaml
 https:
