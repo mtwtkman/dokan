@@ -5,6 +5,7 @@ module Dokan.Config (
   DokanConfig (..),
 ) where
 
+import Control.Exception (try)
 import Control.Monad.Except (ExceptT, MonadError (throwError))
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import qualified Data.List.NonEmpty as NE
@@ -26,7 +27,7 @@ import Dokan.Types (
   LoadedCert (LoadedCert),
   RoutingTable,
  )
-import Network.TLS (credentialLoadX509)
+import Network.TLS (Credential, credentialLoadX509)
 
 data DokanConfig = DokanConfig
   { dokanRoutingTable :: RoutingTable
@@ -103,13 +104,19 @@ buildCertStore configs = CertStore <$> traverse loadTlsConfig configs
 
 loadTlsConfig :: RawTlsConfig -> ExceptT ConfigError IO LoadedCert
 loadTlsConfig (RawTlsConfig cert key hosts) = do
-  cred <- liftIO $ credentialLoadX509 (T.unpack cert) (T.unpack key)
-  case cred of
-    Right c -> do
-      case validateHostPattern hosts of
-        Right hps -> return $ LoadedCert c hps
-        Left e -> throwError e
-    Left e -> throwError $ CannotLoadTlsCert e
+  cred <- readCredential cert key
+  LoadedCert cred <$> liftEither (validateHostPattern hosts)
+ where
+  readCredential :: T.Text -> T.Text -> ExceptT ConfigError IO Credential
+  readCredential cp kp = do
+    result <- liftIO $ try (credentialLoadX509 (T.unpack cp) (T.unpack kp)) :: ExceptT ConfigError IO (Either IOError (Either String Credential))
+    case result of
+      Right (Right c) -> return c
+      Right (Left e) -> throwError $ CannotLoadTlsCert e
+      Left e -> throwError $ CannotLoadTlsCert (show e)
+
+  liftEither :: ConfigParseResult a -> ExceptT ConfigError IO a
+  liftEither = either throwError return
 
 validateHostPattern :: NE.NonEmpty HostName -> ConfigParseResult HostPatternSet
 validateHostPattern hosts =
