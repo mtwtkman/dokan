@@ -5,28 +5,25 @@ Dokan is a simple local reverse proxy for development.
 
 Dokan runs separate listeners:
 - HTTP on port 8080
-- HTTPS on port 8443(fixed)
+- HTTPS on port 8443 (fixed)
 
-Since 80 and 443 ports are reserved, Dokan use 8080 and 8443 instead.
+Since ports 80 and 443 are typically reserved by the operating system, Dokan uses 8080 and 8443. To use standard URLs (e.g., http://a.b.com), it is recommended to use a browser extension like SwitchyOmega to forward traffic to these ports.
 
-Dokan has the following restritcions:
-- HTTP and HTTPS are treated as independent entry points
-- Dokan does not modify, normalize, or reconcile protocol-specific behavior
-- Application-level behavioral differences are the responseibility of the backend
+## Behavior and Restrictions
+- **TLS Termination**: Dokan acts as a TLS terminator. All backends are assumed to be plain HTTP endpoints.
+- **Independent Entry Points**: HTTP and HTTPS are treated as independent entry points.
+- **Header Rewriting**: Dokan rewrites the `Host` header to the backend address by default.
+- **Forwarding Headers**: The original host is preserved in the `X-Forwarded-Host` header. The header `X-Forwarded-Proto: http` is also added to requests.
 
 ## NOTES
-- HTTPS routing is based on SNI hostname
-- HTTP routing uses the Host header
+- HTTPS routing is based on the SNI hostname.
+- HTTP routing uses the `Host` header.
 
 Traffic Flow:
-[Browser (domain-based routing)] -request-> [Dokan] -resolve-> [local server]
+[Browser (via forwarder)] -> [Dokan (http 8080/https 8443)] -> [Local Backend Server]
 
 # Prerequisites
-A trusted certificate authority must be registered on the system.
-
-A self-signed development CA is acceptable if it is installed into the OS or browser trust store.
-
-Dokan does not obtain certificates automatically.
+A trusted certificate authority must be registered on the system. A self-signed development CA is acceptable if it is installed into the OS or browser trust store. Dokan does not obtain certificates automatically.
 
 # Usage
 ```bash
@@ -38,7 +35,7 @@ dokan /path/to/your-route.yaml
 ```
 
 # Routing mapper
-When Dokan reads like:
+Example configuration (`dokan.yaml`):
 ```yaml
 tls:
   - cert: certs/cert.pem
@@ -56,19 +53,12 @@ hosts:
   p.z.com: localhost:8082
   q.z.com: localhost:8083
 ```
-it routes to:
-- https://a.b.com -> http://localhost:3000
-- https://x.y.net -> http://localhost:8081
-- http://p.z.com  -> http://localhost:8082
-- http://q.z.com  -> http://localhost:8083
 
-Backends are assumed to be plain HTTP endpoints.
-
-A backend may itself be a reverse proxy such as nginx.
+With this config, traffic resolves as follows:
+- `https://a.b.com` (SNI) -> `http://localhost:3000`
+- `https://x.y.net` (SNI) -> `http://localhost:8081`
+- `http://p.z.com` (Host Header) -> `http://localhost:8082`
+- `http://q.z.com` (Host Header) -> `http://localhost:8083`
 
 # Acknowledge
-Dokan rewrites the Host header to the backend address by default like nginx.
-
-The original host is forwarded using X-Forwarded-Host.
-
-Preserving the original Host header is available as an opt-in feature.
+Backends may be any local service or another reverse proxy such as Nginx.
