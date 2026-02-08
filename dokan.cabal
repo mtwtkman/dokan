@@ -56,5 +56,4 @@ library
     Dokan.Listener.Https
     Dokan.Proxy.Headers
     Dokan.Proxy.Transfer
-    Dokan.Tls
     Dokan.Types
