@@ -17,12 +17,12 @@ import Network.Wai (Application, Request, Response, requestHeaders, responseLBS)
 type HttpResult a = Either HttpError a
 data HttpError = MissingHost | NoRoute deriving (Show, Eq)
 
-app :: Manager -> RoutingTable -> Application
-app manager routing req respond = do
+app :: Bool -> Manager -> RoutingTable -> Application
+app isSecure manager routing req respond = do
   case resolve routing req of
     Left err -> respond (errorResponse err)
     Right (originalHost, route) -> do
-      resp <- proxyToBackend manager route (TE.encodeUtf8 originalHost) req
+      resp <- proxyToBackend isSecure manager route (TE.encodeUtf8 originalHost) req
       respond resp
 
 errorResponse :: HttpError -> Response

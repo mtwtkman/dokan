@@ -10,4 +10,4 @@ import Network.Wai.Handler.Warp (run)
 runHttp :: RoutingTable -> IO ()
 runHttp routing = do
   manager <- newManager defaultManagerSettings
-  run 8080 (app manager routing)
+  run 8080 (app False manager routing)

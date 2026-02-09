@@ -24,13 +24,13 @@ hopByHopHeaders =
   , "upgrade"
   ]
 
-mkProxyRequest :: Backend -> RequestHeaders -> W.Request -> IO HC.Request
-mkProxyRequest backend headers waiReq = do
+mkProxyRequest :: Bool -> Backend -> RequestHeaders -> W.Request -> IO HC.Request
+mkProxyRequest isSecure backend headers waiReq = do
   body <- W.lazyRequestBody waiReq
   let req =
         HC.defaultRequest
           { HC.method = W.requestMethod waiReq
-          , HC.secure = False
+          , HC.secure = isSecure
           , HC.host = TE.encodeUtf8 (backendHost backend)
           , HC.port = backendPort backend
           , HC.path = W.rawPathInfo waiReq <> W.rawQueryString waiReq
@@ -39,10 +39,10 @@ mkProxyRequest backend headers waiReq = do
           }
   pure req
 
-proxyToBackend :: HC.Manager -> Backend -> B.ByteString -> W.Request -> IO W.Response
-proxyToBackend manager backend originalHost waiReq = do
+proxyToBackend :: Bool -> HC.Manager -> Backend -> B.ByteString -> W.Request -> IO W.Response
+proxyToBackend isSecure manager backend originalHost waiReq = do
   let headers' = rewriteHostHeaders backend originalHost (W.requestHeaders waiReq)
-  proxyReq <- mkProxyRequest backend headers' waiReq
+  proxyReq <- mkProxyRequest isSecure backend headers' waiReq
   resp <- HC.httpLbs proxyReq manager
   pure $
     W.responseLBS
