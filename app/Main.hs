@@ -14,11 +14,11 @@ defaultRouteMap = "dokan.yaml"
 main :: IO ()
 main = do
   configName <- getArgs <&> \a -> if null a then defaultRouteMap else head a
-  config <- runExceptT (loadConfig configName)
-  case config of
-    Right routing -> do
+  result <- runExceptT (loadConfig configName)
+  case result of
+    Right config -> do
       putStrLn $ "Dokan using " <> configName <> " to route"
       concurrently_
-        (runHttp (dokanRoutingTable routing))
-        (runHttps (dokanRoutingTable routing))
+        (runHttp (dokanRoutingTable config))
+        (runHttps config)
     Left e -> print e

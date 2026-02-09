@@ -22,11 +22,11 @@ import Data.Yaml (
 import Dokan.Types (
   Backend (Backend),
   CertStore (CertStore),
-  HostName,
   HostPatternSet (..),
   LoadedCert (LoadedCert),
   RoutingTable,
  )
+import Network.Socket (HostName)
 import Network.TLS (Credential, credentialLoadX509)
 
 data DokanConfig = DokanConfig
@@ -100,7 +100,15 @@ parseBackend value =
       _ -> Nothing
 
 buildCertStore :: [RawTlsConfig] -> ExceptT ConfigError IO CertStore
-buildCertStore configs = CertStore <$> traverse loadTlsConfig configs
+buildCertStore configs = CertStore . sortByHostPattern <$> traverse loadTlsConfig configs
+
+sortByHostPattern :: [LoadedCert] -> [LoadedCert]
+sortByHostPattern certs = let (e, w) = go ([], []) certs in e <> w
+ where
+  go :: ([LoadedCert], [LoadedCert]) -> [LoadedCert] -> ([LoadedCert], [LoadedCert])
+  go acc [] = acc
+  go (es, ws) (x@(LoadedCert _ (HostExacts _)) : xs) = go (x : es, ws) xs
+  go (es, ws) (x@(LoadedCert _ (HostWildcards _)) : xs) = go (es, x : ws) xs
 
 loadTlsConfig :: RawTlsConfig -> ExceptT ConfigError IO LoadedCert
 loadTlsConfig (RawTlsConfig cert key hosts) = do
@@ -128,4 +136,4 @@ validateHostPattern hosts =
         (Just _, Just _) -> Left CannotCombineHostPattern
 
 isWildcardHost :: HostName -> Bool
-isWildcardHost = T.isPrefixOf "*."
+isWildcardHost = (== "*.") . take 2

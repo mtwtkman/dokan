@@ -32,7 +32,7 @@ errorResponse NoRoute = responseLBS status502 [] "No backend route"
 resolve :: RoutingTable -> Request -> HttpResult (T.Text, Backend)
 resolve routing req = do
   host <- extractHost req
-  backend <- maybe (Left NoRoute) Right $ M.lookup host routing
+  backend <- maybe (Left NoRoute) Right $ M.lookup (T.unpack host) routing
   pure (host, backend)
 
 extractHost :: Request -> HttpResult T.Text

@@ -1,7 +1,6 @@
 module Dokan.Types (
   RoutingTable,
   Backend (..),
-  HostName,
   HostPatternSet (..),
   LoadedCert (..),
   CertStore (..),
@@ -11,8 +10,7 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import Network.TLS (Credential)
-
-type HostName = T.Text
+import Network.Socket (HostName)
 
 data Backend = Backend
   { backendHost :: T.Text

@@ -37,6 +37,7 @@ library
     http-client,
     http-types,
     mtl,
+    network,
     stm,
     text,
     tls,
