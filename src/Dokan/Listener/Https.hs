@@ -22,7 +22,7 @@ runHttps (DokanConfig routing certStore) = do
   let warp = setPort 8443 defaultSettings
   tls <- makeTlsSettings certStore
   manager <- newManager defaultManagerSettings
-  runTLS tls warp (app True manager routing)
+  runTLS tls warp (app manager routing)
 
 makeTlsSettings :: CertStore -> IO TLSSettings
 makeTlsSettings certs = return $ tlsSettingsSni (lookupCert certs)
