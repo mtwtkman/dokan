@@ -3,7 +3,7 @@ module Dokan.Listener.Https (
 ) where
 
 import qualified Data.List as L
-import qualified Data.List.NonEmpty as NE
+import Data.Maybe (isJust)
 import Dokan.Config (DokanConfig (DokanConfig))
 import Dokan.Listener.App (app)
 import Dokan.Types (
@@ -28,26 +28,32 @@ makeTlsSettings :: CertStore -> IO TLSSettings
 makeTlsSettings certs = return $ tlsSettingsSni (lookupCert certs)
 
 lookupCert :: CertStore -> Maybe HostName -> IO Credentials
-lookupCert _ Nothing = error "host name must be provided"
-lookupCert (CertStore certs) (Just host) =
-  return $
-    Credentials
-      ( map
-          ( \c -> case findHost c host of
-              Nothing -> error "host name not found"
-              Just v -> v
-          )
-          certs
-      )
+lookupCert _ Nothing = do
+  putStrLn "[TLS] ClientHello withou SNI"
+  return $ Credentials []
+lookupCert (CertStore certs) (Just host) = do
+  putStrLn $ "[TLS] SNI received: " <> host
+  case L.find (\c -> isJust (findHost c host)) certs of
+    Nothing -> return $ Credentials []
+    Just c ->
+      let Just cred = findHost c host
+       in return $ Credentials [cred]
 
 findHost :: LoadedCert -> HostName -> Maybe Credential
 findHost (LoadedCert cred (HostExacts hosts)) host = if host `elem` hosts then Just cred else Nothing
-findHost (LoadedCert cred (HostWildcards hosts)) host
-  | take 2 host /= "*." = Nothing
-  | host `elem` domains = Just cred
-  | otherwise = Nothing
- where
-  domains = NE.map (L.intercalate "" . tail . splitBy '.') hosts
+findHost (LoadedCert cred (HostWildcards patterns)) host =
+  if any (wildcardMatch host) patterns
+    then Just cred
+    else Nothing
+
+wildcardMatch :: HostName -> HostName -> Bool
+wildcardMatch host pattern =
+  case pattern of
+    ('*' : '.' : rest) ->
+      case splitBy '.' host of
+        (_ : xs) -> L.intercalate "." xs == rest
+        _ -> False
+    _ -> False
 
 splitBy :: Char -> String -> [String]
 splitBy delimiter s = case L.span (/= '.') s of
