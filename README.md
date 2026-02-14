@@ -34,31 +34,69 @@ dokan
 dokan /path/to/your-route.yaml
 ```
 
-# Routing mapper
-Example configuration (`dokan.yaml`):
+# Configuration
+Dokan requires a configuration of routing which names `dokan.yaml` as default.
+
+Example:
+
 ```yaml
-tls:
-  - cert: certs/cert.pem
-    key: certs/key.pem
-    hosts:
-      - a.b.com
-      - x.y.net
-  - cert: certs/wildcard.pem
-    key: certs/wildcard-key.pem
-    hosts:
-      - "*.z.com"
+dns:
+  defaultAddress: 127.0.0.1
 hosts:
-  a.b.com: localhost:3000
-  x.y.net: localhost:8081
-  p.z.com: localhost:8082
-  q.z.com: localhost:8083
+  - names:
+      - a.b.io
+      - x.y.io
+    tls:
+      cert: ./certs/cert.pem
+      key: ./certs/cert-key.pem
+    proxy:
+      upstream: http://localhost:3000
+    dns:
+      address: 127.0.0.2
+  - names:
+      - "*.m.n.net"
+    tls:
+      cert: ./certs/wild.pem
+      key: ./certs/wild-key.pem
+    proxy:
+      upstream: http://localhost:8081
 ```
 
-With this config, traffic resolves as follows:
-- `https://a.b.com` (SNI) -> `http://localhost:3000`
-- `https://x.y.net` (SNI) -> `http://localhost:8081`
-- `http://p.z.com` (Host Header) -> `http://localhost:8082`
-- `http://q.z.com` (Host Header) -> `http://localhost:8083`
+## DNS
+
+Dokan has simple DNS layer to avoid modifying your `/etc/hosts`.
+
+You can manage Dokan's simple DNS layer setting by `dns` property.
+
+| key | type | value | necessity |
+| --- | --- | --- | --- |
+| defaultAddress | string | Any request to a name in hosts will return this IP when queried via DNS. Capable for IPv4 and IPv6. | required |
+
+## Hosts
+
+Dokan routes following `hosts` property settings.
+
+| key | type | value | necessity |
+| --- | --- | --- | --- |
+| names | string[] | Hostnames to be routed to proxy. Wildcard hostname must be matched only single section subdomain. | required |
+| tls | object | Setting for tls resolution. | optional |
+| tls.cert | string | Certificate file path. A value is relative then Dokan assumes entrypoint is current directory. | required |
+| tls.key | string | Certificate file path. A value is relative then Dokan assumes entrypoint is current directory. | required |
+| proxy | object | Setting for proxy. | required |
+| proxy.upstream | string | Upstream server address. | required |
+| dns | object | Setting for overwriting default dns. | optional |
+| dns.address | string | An IP address to overwrite default one. Capable for IPv4 and IPv6. | required|
+
+According to above example is mapped as like follow:
+
+- `https://a.b.io` (SNI)    -> `http://localhost:3000`
+- `http://a.b.io`           -> `http://localhost:3000`
+- `https://x.y.io` (SNI)    -> `http://localhost:3000`
+- `http://x.y.io`           -> `http://localhost:3000`
+- `https://l.m.n.net` (SNI) -> `http://localhost:8081`
+- `http://l.m.n.net`        -> `http://localhost:8081`
+
+If `tls` property is not provided, Dokan only handle http request against that hostname.
 
 # Acknowledge
 Backends may be any local service or another reverse proxy such as Nginx.
