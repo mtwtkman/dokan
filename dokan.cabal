@@ -38,6 +38,7 @@ library
     http-types,
     mtl,
     network,
+    network-uri,
     stm,
     text,
     tls,
@@ -58,3 +59,4 @@ library
     Dokan.Proxy.Headers
     Dokan.Proxy.Transfer
     Dokan.Types
+    Dokan.Utils

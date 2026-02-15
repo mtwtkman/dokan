@@ -1,37 +1,44 @@
 module Dokan.Types (
-  RoutingTable,
-  Backend (..),
-  HostPatternSet (..),
-  LoadedCert (..),
-  CertStore (..),
+  DokanConfig (..),
+  IP (..),
+  HostPattern (..),
+  Route (..),
+  HostExactMap,
+  HostExactIndexId (..),
+  HostScheme (..),
 ) where
 
-import Data.List.NonEmpty (NonEmpty)
-import qualified Data.Map.Strict as M
-import qualified Data.Text as T
-import Network.TLS (Credential)
+import qualified Data.Map as M
 import Network.Socket (HostName)
+import Network.TLS (Credential)
+import qualified Network.URI as URI
 
-data Backend = Backend
-  { backendHost :: T.Text
-  , backendPort :: Int
+data IP
+  = IPv4 String String String String
+  | IPv6 String String String String String String String String
+  deriving (Show, Eq)
+
+data HostScheme = Http | Https Credential
+  deriving (Show, Eq)
+
+data HostPattern
+  = HostExact (HostScheme, HostName)
+  | HostWildcard (HostScheme, HostName)
+  deriving (Show, Eq)
+
+data Route = Route
+  { routeHostPattern :: HostPattern
+  , routeDns :: IP
+  , routeBackend :: URI.URI
   }
-  deriving (Eq, Show)
+  deriving (Show, Eq)
 
-type RoutingTable = M.Map HostName Backend
+newtype HostExactIndexId = HostExactIndexId HostName deriving (Show, Eq, Ord)
 
-data HostPatternSet
-  = HostExacts (NonEmpty HostName)
-  | HostWildcards (NonEmpty HostName)
-  deriving (Show, Eq, Ord)
+type HostExactMap = M.Map HostExactIndexId Route
 
-data LoadedCert = LoadedCert
-  { lcCredential :: Credential
-  , lcHostPatterns :: HostPatternSet
+data DokanConfig = DokanConfig
+  { dokanHostExactMap :: HostExactMap
+  , dokanHostWildcards :: [Route]
   }
-  deriving (Show)
-
-newtype CertStore = CertStore
-  { unCertStore :: [LoadedCert]
-  }
-  deriving (Show)
+  deriving (Show, Eq)

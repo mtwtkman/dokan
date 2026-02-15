@@ -1,39 +1,38 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 
 module Dokan.Config (
-  loadConfig,
   DokanConfig (..),
+  loadConfig,
 ) where
 
 import Control.Exception (try)
+import Control.Monad (join)
 import Control.Monad.Except (ExceptT, MonadError (throwError))
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import qualified Data.List.NonEmpty as NE
-import qualified Data.Map.Strict as M
+import Data.Functor ((<&>))
+import qualified Data.List as L
+import qualified Data.Map as M
 import qualified Data.Text as T
 import Data.Yaml (
   FromJSON (parseJSON),
   decodeFileThrow,
   withObject,
-  (.!=),
   (.:),
   (.:?),
  )
 import Dokan.Types (
-  Backend (Backend),
-  CertStore (CertStore),
-  HostPatternSet (..),
-  LoadedCert (LoadedCert),
-  RoutingTable,
+  DokanConfig (DokanConfig),
+  HostExactIndexId (HostExactIndexId),
+  HostExactMap,
+  HostPattern (HostExact, HostWildcard),
+  HostScheme (Http, Https),
+  IP (..),
+  Route (Route),
  )
-import Network.Socket (HostName)
+import Dokan.Utils (splitBy)
 import Network.TLS (Credential, credentialLoadX509)
-
-data DokanConfig = DokanConfig
-  { dokanRoutingTable :: RoutingTable
-  , dokanCertStore :: CertStore
-  }
-  deriving (Show)
+import qualified Network.URI as URI
 
 data ConfigError
   = InvalidBackendFormat T.Text
@@ -41,14 +40,24 @@ data ConfigError
   | CannotLoadTlsCert String
   | CannotCombineHostPattern
   | NoHostNameDetected
+  | WildcardMustBeSingleSubdomain
+  | InvalidWildcardFormat
+  | InvalidBackendUrlFormat
+  | InvalidIPAddressFormat
   deriving (Eq, Show)
 
-type ConfigParseResult a = Either ConfigError a
+newtype RawDnsConfig = RawDnsConfig
+  { rawDefaultAddress :: String
+  }
+  deriving (Show)
+
+instance FromJSON RawDnsConfig where
+  parseJSON = withObject "RawDnsConfig" $ \o ->
+    RawDnsConfig <$> o .: "defaultAddress"
 
 data RawTlsConfig = RawTlsConfig
-  { rawTlsCert :: T.Text
-  , rawTlsKey :: T.Text
-  , rawTlsHosts :: NE.NonEmpty HostName
+  { rawCert :: FilePath
+  , rawKey :: FilePath
   }
   deriving (Show)
 
@@ -57,83 +66,114 @@ instance FromJSON RawTlsConfig where
     RawTlsConfig
       <$> o .: "cert"
       <*> o .: "key"
-      <*> o .: "hosts"
+
+newtype RawProxyConfig = RawProxyConfig
+  { rawUpstream :: String
+  }
+  deriving (Show)
+
+instance FromJSON RawProxyConfig where
+  parseJSON = withObject "RawProxyConfig" $ \o ->
+    RawProxyConfig <$> o .: "upstream"
+
+newtype RawOverwriteDnsConfig = RawOverwriteDnsConfig
+  { rawOverwriteDnsAddress :: String
+  }
+  deriving (Show)
+
+instance FromJSON RawOverwriteDnsConfig where
+  parseJSON = withObject "RawOverwriteDnsConfig" $ \o ->
+    RawOverwriteDnsConfig <$> o .: "address"
+
+data RawHostConfig = RawHostConfig
+  { rawHostNames :: [String]
+  , rawTls :: Maybe RawTlsConfig
+  , rawProxy :: RawProxyConfig
+  , rawOverwriteDns :: Maybe RawOverwriteDnsConfig
+  }
+  deriving (Show)
+
+instance FromJSON RawHostConfig where
+  parseJSON = withObject "RawHostConfig" $ \o ->
+    RawHostConfig
+      <$> o .: "names"
+      <*> o .:? "tls"
+      <*> o .: "proxy"
+      <*> o .:? "dns"
 
 data RawConfig = RawConfig
-  { rawHosts :: M.Map HostName T.Text
-  , rawTLsConfig :: [RawTlsConfig]
+  { rawDns :: RawDnsConfig
+  , rawHosts :: [RawHostConfig]
   }
   deriving (Show)
 
 instance FromJSON RawConfig where
   parseJSON = withObject "RawConfig" $ \o ->
     RawConfig
-      <$> o .: "hosts"
-      <*> o .:? "tls" .!= []
+      <$> o .: "dns"
+      <*> o .: "hosts"
 
 loadConfig :: FilePath -> ExceptT ConfigError IO DokanConfig
-loadConfig path = do
-  raw <- decodeFileThrow path
-  buildDokanConfig raw
+loadConfig configPath = decodeFileThrow configPath >>= buildDokanConfig
 
 buildDokanConfig :: RawConfig -> ExceptT ConfigError IO DokanConfig
-buildDokanConfig (RawConfig hostMapping tlsCerts) = do
-  case traverse parseBackend hostMapping of
-    Right routingTable -> do
-      certStore <- buildCertStore tlsCerts
-      return $ DokanConfig routingTable certStore
-    Left e -> throwError e
+buildDokanConfig (RawConfig dnsConfig hostsConfig) = do
+  routes <- traverse (buildRoutes dnsConfig) hostsConfig
+  let routes' = join routes
+  return $ DokanConfig (mkHostExactMap routes') (filter isWildcard routes')
 
-parseBackend :: T.Text -> ConfigParseResult Backend
-parseBackend value =
-  case T.splitOn ":" value of
-    [host, portTxt] ->
-      case readMaybeInt portTxt of
-        Just port -> Right $ Backend host port
-        Nothing -> Left $ InvalidPort value
-    _ -> Left $ InvalidBackendFormat value
+buildRoutes :: RawDnsConfig -> RawHostConfig -> ExceptT ConfigError IO [Route]
+buildRoutes (RawDnsConfig defaultDns) (RawHostConfig names tls proxy customDns) = do
+  let dns = maybe defaultDns rawOverwriteDnsAddress customDns
+  traverse (toRoute tls proxy dns) names
+
+toRoute :: Maybe RawTlsConfig -> RawProxyConfig -> String -> String -> ExceptT ConfigError IO Route
+toRoute tls proxy dns name =
+  Route
+    <$> buildHostPattern tls name
+    <*> toIPAddress dns
+    <*> buildBackend proxy
+
+buildHostPattern :: Maybe RawTlsConfig -> String -> ExceptT ConfigError IO HostPattern
+buildHostPattern tls s
+  | wildcardCount > 1 = throwError WildcardMustBeSingleSubdomain
+  | take 1 s /= "*" && wildcardCount > 0 = throwError InvalidWildcardFormat
+  | wildcardCount == 0 = detectHostScheme tls <&> HostExact . (,s)
+  | otherwise = detectHostScheme tls <&> HostWildcard . (,s)
  where
-  readMaybeInt :: T.Text -> Maybe Int
-  readMaybeInt t =
-    case reads (T.unpack t) of
-      [(n, "")] -> Just n
-      _ -> Nothing
+  wildcardCount = length (L.elemIndices '*' s)
 
-buildCertStore :: [RawTlsConfig] -> ExceptT ConfigError IO CertStore
-buildCertStore configs = CertStore . sortByHostPattern <$> traverse loadTlsConfig configs
+detectHostScheme :: Maybe RawTlsConfig -> ExceptT ConfigError IO HostScheme
+detectHostScheme Nothing = return Http
+detectHostScheme (Just (RawTlsConfig cert key)) = do
+  result <- liftIO $ try (credentialLoadX509 cert key) :: ExceptT ConfigError IO (Either IOError (Either String Credential))
+  case result of
+    Right (Right c) -> return $ Https c
+    Right (Left _) -> throwError $ CannotLoadTlsCert "Reason: unknown"
+    Left e -> throwError $ CannotLoadTlsCert (show e)
 
-sortByHostPattern :: [LoadedCert] -> [LoadedCert]
-sortByHostPattern certs = let (e, w) = go ([], []) certs in e <> w
+toIPAddress :: String -> ExceptT ConfigError IO IP
+toIPAddress s =
+  let maybeV4 = splitBy "." s
+      maybeV6 = splitBy "::" s
+   in case (maybeV4, maybeV6) of
+        ([v1, v2, v3, v4], []) -> return $ IPv4 v1 v2 v3 v4
+        ([], [v1, v2, v3, v4, v5, v6, v7, v8]) -> return $ IPv6 v1 v2 v3 v4 v5 v6 v7 v8
+        _ -> throwError InvalidIPAddressFormat
+
+mkHostExactMap :: [Route] -> HostExactMap
+mkHostExactMap = go M.empty
  where
-  go :: ([LoadedCert], [LoadedCert]) -> [LoadedCert] -> ([LoadedCert], [LoadedCert])
+  go :: HostExactMap -> [Route] -> HostExactMap
   go acc [] = acc
-  go (es, ws) (x@(LoadedCert _ (HostExacts _)) : xs) = go (x : es, ws) xs
-  go (es, ws) (x@(LoadedCert _ (HostWildcards _)) : xs) = go (es, x : ws) xs
+  go acc (r@(Route (HostExact (_, n)) _ _) : rest) = go (M.insert (HostExactIndexId n) r acc) rest
+  go acc ((Route (HostWildcard _) _ _ : rest)) = go acc rest
 
-loadTlsConfig :: RawTlsConfig -> ExceptT ConfigError IO LoadedCert
-loadTlsConfig (RawTlsConfig cert key hosts) = do
-  cred <- readCredential cert key
-  LoadedCert cred <$> liftEither (validateHostPattern hosts)
- where
-  readCredential :: T.Text -> T.Text -> ExceptT ConfigError IO Credential
-  readCredential cp kp = do
-    result <- liftIO $ try (credentialLoadX509 (T.unpack cp) (T.unpack kp)) :: ExceptT ConfigError IO (Either IOError (Either String Credential))
-    case result of
-      Right (Right c) -> return c
-      Right (Left e) -> throwError $ CannotLoadTlsCert e
-      Left e -> throwError $ CannotLoadTlsCert (show e)
+buildBackend :: (MonadFail m) => RawProxyConfig -> ExceptT ConfigError m URI.URI
+buildBackend (RawProxyConfig uri) = case URI.parseURI uri of
+  Nothing -> throwError InvalidBackendUrlFormat
+  Just v -> return v
 
-  liftEither :: ConfigParseResult a -> ExceptT ConfigError IO a
-  liftEither = either throwError return
-
-validateHostPattern :: NE.NonEmpty HostName -> ConfigParseResult HostPatternSet
-validateHostPattern hosts =
-  let (wildcards, exacts) = NE.partition isWildcardHost hosts
-   in case (NE.nonEmpty wildcards, NE.nonEmpty exacts) of
-        (Just ws, Nothing) -> Right $ HostWildcards ws
-        (Nothing, Just es) -> Right $ HostExacts es
-        (Nothing, Nothing) -> Left NoHostNameDetected
-        (Just _, Just _) -> Left CannotCombineHostPattern
-
-isWildcardHost :: HostName -> Bool
-isWildcardHost = (== "*.") . take 2
+isWildcard :: Route -> Bool
+isWildcard (Route (HostExact _) _ _) = False
+isWildcard (Route (HostWildcard _) _ _) = True

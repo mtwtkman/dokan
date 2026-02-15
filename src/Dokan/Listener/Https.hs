@@ -3,6 +3,7 @@ module Dokan.Listener.Https (
 ) where
 
 import qualified Data.List as L
+import Dokan.Utils (splitBy)
 import Data.Maybe (isJust)
 import Dokan.Config (DokanConfig (DokanConfig))
 import Dokan.Listener.App (app)
@@ -54,8 +55,3 @@ wildcardMatch host pattern =
         (_ : xs) -> L.intercalate "." xs == rest
         _ -> False
     _ -> False
-
-splitBy :: Char -> String -> [String]
-splitBy delimiter s = case L.span (/= '.') s of
-  (x, _ : y) -> x : splitBy delimiter y
-  (x, "") -> [x]
