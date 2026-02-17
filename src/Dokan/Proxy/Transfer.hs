@@ -4,6 +4,7 @@ module Dokan.Proxy.Transfer (proxyToBackend) where
 
 import qualified Data.ByteString as B
 import qualified Data.CaseInsensitive as CI
+import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Dokan.Proxy.Headers (rewriteHostHeaders)
 import Dokan.Types (Backend (backendHost, backendPort))
@@ -31,7 +32,7 @@ mkProxyRequest backend headers waiReq = do
         HC.defaultRequest
           { HC.method = W.requestMethod waiReq
           , HC.secure = False
-          , HC.host = TE.encodeUtf8 (backendHost backend)
+          , HC.host = TE.encodeUtf8 (T.pack $ backendHost backend)
           , HC.port = backendPort backend
           , HC.path = W.rawPathInfo waiReq <> W.rawQueryString waiReq
           , HC.requestHeaders = headers

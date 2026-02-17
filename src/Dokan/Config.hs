@@ -2,7 +2,6 @@
 {-# LANGUAGE TupleSections #-}
 
 module Dokan.Config (
-  DokanConfig (..),
   loadConfig,
 ) where
 
@@ -22,12 +21,13 @@ import Data.Yaml (
   (.:?),
  )
 import Dokan.Types (
+  Backend (Backend),
   DokanConfig (DokanConfig),
   HostExactIndexId (HostExactIndexId),
   HostExactMap,
   HostPattern (HostExact, HostWildcard),
   HostScheme (Http, Https),
-  IP (..),
+  IP (IPv4, IPv6),
   Route (Route),
  )
 import Dokan.Utils (splitBy)
@@ -169,10 +169,17 @@ mkHostExactMap = go M.empty
   go acc (r@(Route (HostExact (_, n)) _ _) : rest) = go (M.insert (HostExactIndexId n) r acc) rest
   go acc ((Route (HostWildcard _) _ _ : rest)) = go acc rest
 
-buildBackend :: (MonadFail m) => RawProxyConfig -> ExceptT ConfigError m URI.URI
+buildBackend :: (MonadFail m) => RawProxyConfig -> ExceptT ConfigError m Backend
 buildBackend (RawProxyConfig uri) = case URI.parseURI uri of
   Nothing -> throwError InvalidBackendUrlFormat
-  Just v -> return v
+  Just v -> case URI.uriAuthority v of
+    Just (URI.URIAuth _ host port) -> Backend host <$> extendPort port
+    Nothing -> throwError InvalidBackendUrlFormat
+ where
+  extendPort :: (MonadFail m) => String -> ExceptT ConfigError m Int
+  extendPort s = case splitBy ":" s of
+    [port] -> return (read port)
+    _ -> throwError InvalidBackendUrlFormat
 
 isWildcard :: Route -> Bool
 isWildcard (Route (HostExact _) _ _) = False

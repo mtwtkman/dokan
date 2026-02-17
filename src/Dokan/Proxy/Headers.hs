@@ -4,6 +4,7 @@ module Dokan.Proxy.Headers (
   rewriteHostHeaders,
 ) where
 
+import qualified Data.Text as T
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.CaseInsensitive as CI
@@ -31,7 +32,7 @@ hostHeader backend =
 
 backendHostPort :: Backend -> B.ByteString
 backendHostPort backend =
-  TE.encodeUtf8 (backendHost backend) <> ":" <> BC.pack (show (backendPort backend))
+  TE.encodeUtf8 (T.pack $ backendHost backend) <> ":" <> BC.pack (show (backendPort backend))
 
 isHostHeader :: (CI.CI B.ByteString, B.ByteString) -> Bool
 isHostHeader (k, _) = CI.foldCase k == "host"

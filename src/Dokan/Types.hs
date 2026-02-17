@@ -6,12 +6,12 @@ module Dokan.Types (
   HostExactMap,
   HostExactIndexId (..),
   HostScheme (..),
+  Backend(..),
 ) where
 
 import qualified Data.Map as M
 import Network.Socket (HostName)
 import Network.TLS (Credential)
-import qualified Network.URI as URI
 
 data IP
   = IPv4 String String String String
@@ -26,10 +26,16 @@ data HostPattern
   | HostWildcard (HostScheme, HostName)
   deriving (Show, Eq)
 
+data Backend = Backend
+  { backendHost :: String
+  , backendPort :: Int
+  }
+  deriving (Show, Eq)
+
 data Route = Route
   { routeHostPattern :: HostPattern
   , routeDns :: IP
-  , routeBackend :: URI.URI
+  , routeBackend :: Backend
   }
   deriving (Show, Eq)
 
