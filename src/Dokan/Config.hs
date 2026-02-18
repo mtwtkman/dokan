@@ -12,7 +12,6 @@ import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Functor ((<&>))
 import qualified Data.List as L
 import qualified Data.Map as M
-import qualified Data.Text as T
 import Data.Yaml (
   FromJSON (parseJSON),
   decodeFileThrow,
@@ -35,14 +34,12 @@ import Network.TLS (Credential, credentialLoadX509)
 import qualified Network.URI as URI
 
 data ConfigError
-  = InvalidBackendFormat T.Text
-  | InvalidPort T.Text
-  | CannotLoadTlsCert String
-  | CannotCombineHostPattern
-  | NoHostNameDetected
+  = CannotLoadTlsCert String
   | WildcardMustBeSingleSubdomain
   | InvalidWildcardFormat
-  | InvalidBackendUrlFormat
+  | PortNotFound
+  | UrlAuthorityNotFound
+  | FailedParsingUrl
   | InvalidIPAddressFormat
   deriving (Eq, Show)
 
@@ -157,8 +154,8 @@ toIPAddress s =
   let maybeV4 = splitBy "." s
       maybeV6 = splitBy "::" s
    in case (maybeV4, maybeV6) of
-        ([v1, v2, v3, v4], []) -> return $ IPv4 v1 v2 v3 v4
-        ([], [v1, v2, v3, v4, v5, v6, v7, v8]) -> return $ IPv6 v1 v2 v3 v4 v5 v6 v7 v8
+        ([v1, v2, v3, v4], _) -> return $ IPv4 v1 v2 v3 v4
+        (_, [v1, v2, v3, v4, v5, v6, v7, v8]) -> return $ IPv6 v1 v2 v3 v4 v5 v6 v7 v8
         _ -> throwError InvalidIPAddressFormat
 
 mkHostExactMap :: [Route] -> HostExactMap
@@ -171,15 +168,15 @@ mkHostExactMap = go M.empty
 
 buildBackend :: (MonadFail m) => RawProxyConfig -> ExceptT ConfigError m Backend
 buildBackend (RawProxyConfig uri) = case URI.parseURI uri of
-  Nothing -> throwError InvalidBackendUrlFormat
+  Nothing -> throwError FailedParsingUrl
   Just v -> case URI.uriAuthority v of
     Just (URI.URIAuth _ host port) -> Backend host <$> extendPort port
-    Nothing -> throwError InvalidBackendUrlFormat
+    Nothing -> throwError UrlAuthorityNotFound
  where
   extendPort :: (MonadFail m) => String -> ExceptT ConfigError m Int
   extendPort s = case splitBy ":" s of
-    [port] -> return (read port)
-    _ -> throwError InvalidBackendUrlFormat
+    _ : [port] -> return (read port)
+    _ -> throwError PortNotFound
 
 isWildcard :: Route -> Bool
 isWildcard (Route (HostExact _) _ _) = False

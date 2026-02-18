@@ -44,7 +44,7 @@ newtype HostExactIndexId = HostExactIndexId HostName deriving (Show, Eq, Ord)
 type HostExactMap = M.Map HostExactIndexId Route
 
 data DokanConfig = DokanConfig
-  { dokanHostExactMap :: HostExactMap
+  { dokanHostExacts :: HostExactMap
   , dokanHostWildcards :: [Route]
   }
   deriving (Show, Eq)

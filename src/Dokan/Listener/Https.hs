@@ -3,55 +3,43 @@ module Dokan.Listener.Https (
 ) where
 
 import qualified Data.List as L
-import Dokan.Utils (splitBy)
-import Data.Maybe (isJust)
-import Dokan.Config (DokanConfig (DokanConfig))
+import qualified Data.Map as M
 import Dokan.Listener.App (app)
 import Dokan.Types (
-  CertStore (CertStore),
-  HostPatternSet (HostExacts, HostWildcards),
-  LoadedCert (LoadedCert),
+  DokanConfig (DokanConfig),
+  HostExactIndexId (HostExactIndexId),
+  HostPattern (HostExact, HostWildcard),
+  HostScheme (Https),
+  Route (Route),
  )
 import Network.HTTP.Client (defaultManagerSettings, newManager)
-import Network.Socket (HostName)
-import Network.TLS (Credential, Credentials (Credentials))
+import Network.TLS (Credential, Credentials (Credentials), HostName)
 import Network.Wai.Handler.Warp (defaultSettings, setPort)
 import Network.Wai.Handler.WarpTLS (TLSSettings, runTLS, tlsSettingsSni)
 
+type CredentialMap = M.Map HostName Credential
+
 runHttps :: DokanConfig -> IO ()
-runHttps (DokanConfig routing certStore) = do
+runHttps config = do
   let warp = setPort 8443 defaultSettings
-  tls <- makeTlsSettings certStore
+  tls <- makeTlsSettings config
   manager <- newManager defaultManagerSettings
-  runTLS tls warp (app manager routing)
+  runTLS tls warp (app manager config)
 
-makeTlsSettings :: CertStore -> IO TLSSettings
-makeTlsSettings certs = return $ tlsSettingsSni (lookupCert certs)
+makeTlsSettings :: DokanConfig -> IO TLSSettings
+makeTlsSettings config = return $ tlsSettingsSni (lookupCert config)
 
-lookupCert :: CertStore -> Maybe HostName -> IO Credentials
-lookupCert _ Nothing = do
-  putStrLn "[TLS] ClientHello withou SNI"
-  return $ Credentials []
-lookupCert (CertStore certs) (Just host) = do
-  putStrLn $ "[TLS] SNI received: " <> host
-  case L.find (\c -> isJust (findHost c host)) certs of
-    Nothing -> return $ Credentials []
-    Just c ->
-      let Just cred = findHost c host
-       in return $ Credentials [cred]
+lookupCert :: DokanConfig -> Maybe HostName -> IO Credentials
+lookupCert _ Nothing = return $ Credentials []
+lookupCert (DokanConfig exactMap wildcards) (Just hostname) = do
+  case M.lookup (HostExactIndexId hostname) exactMap of
+    Just (Route (HostExact (Https cred, _)) _ _) -> return $ Credentials [cred]
+    Just _ -> return $ Credentials []
+    Nothing -> return $ findWildcardCert wildcards hostname
 
-findHost :: LoadedCert -> HostName -> Maybe Credential
-findHost (LoadedCert cred (HostExacts hosts)) host = if host `elem` hosts then Just cred else Nothing
-findHost (LoadedCert cred (HostWildcards patterns)) host =
-  if any (wildcardMatch host) patterns
-    then Just cred
-    else Nothing
-
-wildcardMatch :: HostName -> HostName -> Bool
-wildcardMatch host pattern =
-  case pattern of
-    ('*' : '.' : rest) ->
-      case splitBy '.' host of
-        (_ : xs) -> L.intercalate "." xs == rest
-        _ -> False
-    _ -> False
+findWildcardCert :: [Route] -> HostName -> Credentials
+findWildcardCert [] _ = Credentials []
+findWildcardCert ((Route (HostWildcard (Https cred, name)) _ _) : rest) hostname =
+  let domain = "*." <> drop 2 hostname
+   in if domain == name then Credentials [cred] else findWildcardCert rest hostname
+findWildcardCert _ _ = Credentials []
