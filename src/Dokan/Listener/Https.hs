@@ -4,6 +4,7 @@ module Dokan.Listener.Https (
 
 import qualified Data.List as L
 import qualified Data.Map as M
+import Data.Maybe (maybeToList)
 import Dokan.Listener.App (app)
 import Dokan.Types (
   DokanConfig (DokanConfig),
@@ -12,12 +13,11 @@ import Dokan.Types (
   HostScheme (Https),
   Route (Route),
  )
+import Dokan.Utils (splitBy)
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 import Network.TLS (Credential, Credentials (Credentials), HostName)
 import Network.Wai.Handler.Warp (defaultSettings, setPort)
 import Network.Wai.Handler.WarpTLS (TLSSettings, runTLS, tlsSettingsSni)
-
-type CredentialMap = M.Map HostName Credential
 
 runHttps :: DokanConfig -> IO ()
 runHttps config = do
@@ -27,19 +27,22 @@ runHttps config = do
   runTLS tls warp (app manager config)
 
 makeTlsSettings :: DokanConfig -> IO TLSSettings
-makeTlsSettings config = return $ tlsSettingsSni (lookupCert config)
+makeTlsSettings config = do
+  return $ tlsSettingsSni (lookupCert config)
 
 lookupCert :: DokanConfig -> Maybe HostName -> IO Credentials
 lookupCert _ Nothing = return $ Credentials []
 lookupCert (DokanConfig exactMap wildcards) (Just hostname) = do
-  case M.lookup (HostExactIndexId hostname) exactMap of
-    Just (Route (HostExact (Https cred, _)) _ _) -> return $ Credentials [cred]
-    Just _ -> return $ Credentials []
-    Nothing -> return $ findWildcardCert wildcards hostname
+  let found = case M.lookup (HostExactIndexId hostname) exactMap of
+        Just (Route (HostExact (Https cred, _)) _ _) -> Just cred
+        Just _ -> Nothing
+        Nothing -> findWildcardCert wildcards hostname
+  return $ Credentials (maybeToList found)
 
-findWildcardCert :: [Route] -> HostName -> Credentials
-findWildcardCert [] _ = Credentials []
+findWildcardCert :: [Route] -> HostName -> Maybe Credential
+findWildcardCert [] _ = Nothing
 findWildcardCert ((Route (HostWildcard (Https cred, name)) _ _) : rest) hostname =
-  let domain = "*." <> drop 2 hostname
-   in if domain == name then Credentials [cred] else findWildcardCert rest hostname
-findWildcardCert _ _ = Credentials []
+  if L.intercalate "." ("*" : drop 1 (splitBy "." hostname)) == name
+    then Just cred
+    else findWildcardCert rest hostname
+findWildcardCert _ _ = Nothing
