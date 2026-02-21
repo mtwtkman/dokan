@@ -34,8 +34,10 @@ library
     case-insensitive,
     containers,
     data-default,
+    dns,
     http-client,
     http-types,
+    iproute,
     mtl,
     network,
     network-uri,
@@ -56,6 +58,7 @@ library
     Dokan.Listener.App
     Dokan.Listener.Http
     Dokan.Listener.Https
+    Dokan.Listener.Dns
     Dokan.Proxy.Headers
     Dokan.Proxy.Transfer
     Dokan.Types

@@ -9,13 +9,14 @@ module Dokan.Types (
   Backend(..),
 ) where
 
+import Data.Word (Word8, Word16)
 import qualified Data.Map as M
 import Network.Socket (HostName)
 import Network.TLS (Credential)
 
 data IP
-  = IPv4 String String String String
-  | IPv6 String String String String String String String String
+  = IPv4 Word8 Word8 Word8 Word8
+  | IPv6 Word16 Word16 Word16 Word16 Word16 Word16 Word16 Word16
   deriving (Show, Eq)
 
 data HostScheme = Http | Https Credential

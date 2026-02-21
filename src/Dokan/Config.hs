@@ -12,6 +12,7 @@ import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Functor ((<&>))
 import qualified Data.List as L
 import qualified Data.Map as M
+import Data.Word (Word16)
 import Data.Yaml (
   FromJSON (parseJSON),
   decodeFileThrow,
@@ -32,6 +33,7 @@ import Dokan.Types (
 import Dokan.Utils (splitBy)
 import Network.TLS (Credential, credentialLoadX509)
 import qualified Network.URI as URI
+import Numeric (readHex)
 
 data ConfigError
   = CannotLoadTlsCert String
@@ -41,6 +43,7 @@ data ConfigError
   | UrlAuthorityNotFound
   | FailedParsingUrl
   | InvalidIPAddressFormat
+  | InvalidHexNumber String
   deriving (Eq, Show)
 
 newtype RawDnsConfig = RawDnsConfig
@@ -154,9 +157,24 @@ toIPAddress s =
   let maybeV4 = splitBy "." s
       maybeV6 = splitBy "::" s
    in case (maybeV4, maybeV6) of
-        ([v1, v2, v3, v4], _) -> return $ IPv4 v1 v2 v3 v4
-        (_, [v1, v2, v3, v4, v5, v6, v7, v8]) -> return $ IPv6 v1 v2 v3 v4 v5 v6 v7 v8
+        ([v1, v2, v3, v4], _) -> return $ IPv4 (read v1) (read v2) (read v3) (read v4)
+        (_, [v1, v2, v3, v4, v5, v6, v7, v8]) ->
+          do
+            IPv6 <$> toWord16 v1
+            <*> toWord16 v2
+            <*> toWord16 v3
+            <*> toWord16 v4
+            <*> toWord16 v5
+            <*> toWord16 v6
+            <*> toWord16 v7
+            <*> toWord16 v8
         _ -> throwError InvalidIPAddressFormat
+ where
+  toWord16 :: String -> ExceptT ConfigError IO Word16
+  toWord16 value =
+    case readHex value of
+      [(num, [])] -> return num
+      _ -> throwError $ InvalidHexNumber value
 
 mkHostExactMap :: [Route] -> HostExactMap
 mkHostExactMap = go M.empty
