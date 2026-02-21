@@ -1,5 +1,3 @@
-TODO: ALL OF THEM
-
 # Dokan
 Dokan is a simple local reverse proxy for development.
 
@@ -97,6 +95,20 @@ According to above example is mapped as like follow:
 - `http://l.m.n.net`        -> `http://localhost:8081`
 
 If `tls` property is not provided, Dokan only handle http request against that hostname.
+
+# Example
+
+```sh
+# Start dokan
+cabal run dokan -- dokan.yaml
+
+# Start backend server
+python -m http.server 3000
+
+# test request
+curl -H 'Host: a.b.io' http://localhost:8080
+curl --resolve a.b.io:8443:127.0.0.1 https://a.b.io:8443
+```
 
 # Acknowledge
 Backends may be any local service or another reverse proxy such as Nginx.
