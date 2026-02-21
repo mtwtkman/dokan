@@ -4,6 +4,7 @@ import Control.Concurrent.Async (concurrently_)
 import Control.Monad.Except (runExceptT)
 import Data.Functor ((<&>))
 import Dokan.Config (loadConfig)
+import Dokan.Listener.Dns (runDns)
 import Dokan.Listener.Http (runHttp)
 import Dokan.Listener.Https (runHttps)
 import System.Environment (getArgs)
@@ -18,7 +19,5 @@ main = do
   case result of
     Right config -> do
       putStrLn $ "Dokan using " <> configName <> " to route"
-      concurrently_
-        (runHttp config)
-        (runHttps config)
+      foldr concurrently_ (return ()) [runHttp config, runDns config, runHttps config]
     Left e -> print e

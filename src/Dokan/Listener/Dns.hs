@@ -57,17 +57,19 @@ import Network.Socket (
  )
 import Network.Socket.ByteString (recvFrom, sendTo)
 
-runDns :: DokanConfig -> IO Int
+runDns :: DokanConfig -> IO ()
 runDns config = do
-  let port = "8053"
+  let port = "5353"
   putStrLn $ "Starging DNS listener on port " <> port
   withSocketsDo $ bracket (openSocket port) close $ \sock -> forever $ do
     (bs, addr) <- recvFrom sock 512
     case decode bs of
-      Left _ -> putStrLn "Failed to decode DNS query" >> return 1
+      Left _ -> putStrLn "Failed to decode DNS query"
       Right msg -> do
         response <- handleQuery config msg
-        sendTo sock (encode response) addr
+        result <- sendTo sock (encode response) addr
+        print $ "[DNS] result: " <> show result
+        return ()
 
 openSocket :: String -> IO Socket
 openSocket port = do
